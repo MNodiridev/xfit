@@ -17,7 +17,7 @@ def get_main_menu():
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Добро пожаловать в EnergyFit!\nВыберите нужный раздел:",
+        "Добро пожаловать в X-fit Premium Dushanbe!\nВыберите нужный раздел:",
         reply_markup=get_main_menu()
     )
 
@@ -26,7 +26,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     if query.data == "schedule":
-        await query.edit_message_text("📆 Расписание:\nПн–Пт: 7:00–22:00\nСб–Вс: 9:00–20:00")
+        await query.edit_message_text("📆 Расписание:\nПн–Пт: 7:00–23:00\nСб–Вс: 9:00–20:00")
     elif query.data == "trainers":
         await query.edit_message_text("🧑‍🏫 Наши тренеры:\n- Али\n- Дилшод\n- Сабина")
     elif query.data == "pricing":
