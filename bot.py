@@ -7,7 +7,7 @@ TOKEN = os.getenv("TG_BOT_TOKEN")
 CLUB_NAME = os.getenv("CLUB_NAME", "X-fit Premium Dushanbe")
 
 # Публичная ссылка на Google Form (возьмём из Google Apps Script после createForm)
-FEEDBACK_FORM_URL = os.getenv("FEEDBACK_FORM_URL", "https://docs.google.com/forms/d/ВАША_ССЫЛКА/viewform")
+FEEDBACK_FORM_URL = os.getenv("FEEDBACK_FORM_URL", "https://docs.google.com/forms/d/https://docs.google.com/forms/d/e/1FAIpQLSdg9cKHTec26MQhBa13T5nefHNKaUnaXxEOiCaAnzPoeZwO4g/viewform?usp=header/viewform")
 
 def main_menu():
     return ReplyKeyboardMarkup(
