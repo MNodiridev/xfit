@@ -1,5 +1,5 @@
+
 # requirements: python-telegram-bot==20.0
-import asyncio
 import logging
 import os
 import re
@@ -7,7 +7,8 @@ import smtplib
 import sqlite3
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
-from email.mime_text import MIMEText
+from email.mime.text import MIMEText
+from typing import Optional
 
 from telegram import (
     Update,
@@ -47,7 +48,7 @@ logger = logging.getLogger(__name__)
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
-        """
+        '''
         CREATE TABLE IF NOT EXISTS guest_visits (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
@@ -56,12 +57,12 @@ def init_db():
             tg_username TEXT,
             created_at TEXT
         )
-        """
+        '''
     )
     conn.commit()
     conn.close()
 
-def insert_guest(name: str, phone: str, tg_user_id: int, tg_username: str | None) -> int:
+def insert_guest(name: str, phone: str, tg_user_id: int, tg_username: Optional[str]) -> int:
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute(
@@ -73,7 +74,7 @@ def insert_guest(name: str, phone: str, tg_user_id: int, tg_username: str | None
     conn.close()
     return int(rowid)
 
-def normalize_phone(text: str) -> str | None:
+def normalize_phone(text: str) -> Optional[str]:
     if not text:
         return None
     # keep + and digits
