@@ -44,19 +44,11 @@ CLUB_WEBSITE = os.getenv("CLUB_WEBSITE", "https://x-fit.tj")
 CLUB_ADDRESS = os.getenv("CLUB_ADDRESS", "Dushanbe, Muhammadieva St. 24/2")
 CLUB_EMAIL = os.getenv("CLUB_EMAIL", "info@x-fit.tj")
 CLUB_PHONE = os.getenv("CLUB_PHONE", "+992 48 8888 555")
-CLUB_PHONE = _env_multi("CLUB_PHONE", "Вашего звонка ждут", default="+992 48 8888 555")
-CLUB_EMAIL = _env_multi("CLUB_EMAIL", "Почтовый ящик", default="info@x-fit.tj")
-CLUB_ADDRESS = _env_multi("CLUB_ADDRESS", "Находимся", default="г. Душанбе, ул. Мухаммадиева, 24/2")
-CLUB_WEBSITE = _env_multi("CLUB_WEBSITE", "Онлайн", default="https://x-fit.tj")
+CLUB_PHONE = os.getenv("CLUB_PHONE", "+992 48 8888 555")
+CLUB_EMAIL = os.getenv("CLUB_EMAIL", "info@x-fit.tj")
+CLUB_ADDRESS = os.getenv("CLUB_ADDRESS", "Dushanbe, Muhammadieva St. 24/2")
+CLUB_WEBSITE = os.getenv("CLUB_WEBSITE", "https://x-fit.tj")
 CLUB_MAP_URL = os.getenv("CLUB_MAP_URL", "")
-
-def _env_multi(*keys: str, default: str = "") -> str:
-    for k in keys:
-        v = os.getenv(k)
-        if v:
-            return v
-    return default
-
 
 # === Logging ===
 logging.basicConfig(
