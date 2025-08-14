@@ -195,8 +195,7 @@ def contacts_text():
         lines.extend(["", "🌐 Сайт:", CLUB_WEBSITE])
     if CLUB_MAP_URL:
         lines.extend(["", "🗺️ Карта:", CLUB_MAP_URL])
-    return "
-".join(lines)
+    return "\n".join(lines)
 
 # === States ===
 (
