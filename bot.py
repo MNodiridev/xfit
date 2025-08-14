@@ -37,6 +37,26 @@ SMTP_PASS = os.getenv("SMTP_PASS")
 SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "1") == "1"
 
 DB_PATH = os.getenv("DB_PATH", "guest_visits.sqlite3")
+# Public info (for "Режим работы и контакты")
+WORKING_HOURS = os.getenv("WORKING_HOURS", "Mon–Sun: 06:00–23:00")
+CLUB_MAP_URL = os.getenv("CLUB_MAP_URL", "")
+CLUB_WEBSITE = os.getenv("CLUB_WEBSITE", "https://x-fit.tj")
+CLUB_ADDRESS = os.getenv("CLUB_ADDRESS", "Dushanbe, Muhammadieva St. 24/2")
+CLUB_EMAIL = os.getenv("CLUB_EMAIL", "info@x-fit.tj")
+CLUB_PHONE = os.getenv("CLUB_PHONE", "+992 48 8888 555")
+CLUB_PHONE = _env_multi("CLUB_PHONE", "Вашего звонка ждут", default="+992 48 8888 555")
+CLUB_EMAIL = _env_multi("CLUB_EMAIL", "Почтовый ящик", default="info@x-fit.tj")
+CLUB_ADDRESS = _env_multi("CLUB_ADDRESS", "Находимся", default="г. Душанбе, ул. Мухаммадиева, 24/2")
+CLUB_WEBSITE = _env_multi("CLUB_WEBSITE", "Онлайн", default="https://x-fit.tj")
+CLUB_MAP_URL = os.getenv("CLUB_MAP_URL", "")
+
+def _env_multi(*keys: str, default: str = "") -> str:
+    for k in keys:
+        v = os.getenv(k)
+        if v:
+            return v
+    return default
+
 
 # === Logging ===
 logging.basicConfig(
@@ -62,34 +82,68 @@ def init_db():
     conn.commit()
     conn.close()
 
+def _db_connect():
+    return sqlite3.connect(DB_PATH)
+
+def _db_execute(query: str, params: tuple = ()):
+    with _db_connect() as conn:
+        cur = conn.execute(query, params)
+        conn.commit()
+        return cur
+
 def insert_guest(name: str, phone: str, tg_user_id: int, tg_username: Optional[str]) -> int:
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
+    cur = _db_execute(
         "INSERT INTO guest_visits (name, phone, tg_user_id, tg_username, created_at) VALUES (?,?,?,?,?)",
         (name, phone, tg_user_id, tg_username, datetime.utcnow().isoformat() + "Z"),
     )
-    conn.commit()
-    rowid = cur.lastrowid
-    conn.close()
-    return int(rowid)
+    return int(cur.lastrowid)
 
 def normalize_phone(text: str) -> Optional[str]:
     if not text:
         return None
-    # keep + and digits
     digits = re.sub(r"[^\d+]", "", text)
-    # Basic sanity: at least 7 digits
-    if len(re.sub(r"\D", "", digits)) < 7:
+    only_digits = re.sub(r"\D", "", digits)
+    if len(only_digits) < 7:
         return None
-    # Ensure leading + if it looks like intl without plus
-    if digits and digits[0] != "+" and len(re.sub(r"\D", "", digits)) >= 10:
-        digits = "+" + re.sub(r"\D", "", digits)
+    if digits and not digits.startswith("+") and len(only_digits) >= 10:
+        digits = "+" + only_digits
     return digits
 
 def send_email(application_id: int, name: str, phone: str, update: Update):
     if not SMTP_HOST or not SMTP_USER or not SMTP_PASS:
         logger.warning("SMTP not configured; skipping email send.")
+        return False
+
+    subject = f"Заявка с ТГ бота №{application_id}"
+    body = (
+        f"Новая заявка на гостевой визит в {CLUB_NAME}\n\n"
+        f"ID заявки: {application_id}\n"
+        f"Имя: {name}\n"
+        f"Телефон: {phone}\n"
+        f"TG user: @{(update.effective_user.username or '')}\n"
+        f"TG user id: {update.effective_user.id}\n"
+        f"Дата (UTC): {datetime.utcnow().isoformat()}Z\n"
+    )
+
+    msg = MIMEMultipart()
+    msg["From"] = SMTP_USER
+    msg["To"] = EMAIL_TO
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain", "utf-8"))
+
+    try:
+        if SMTP_USE_TLS:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASS)
+                server.sendmail(SMTP_USER, [EMAIL_TO], msg.as_string())
+        else:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:
+                server.login(SMTP_USER, SMTP_PASS)
+                server.sendmail(SMTP_USER, [EMAIL_TO], msg.as_string())
+        return True
+    except Exception:
+        logger.exception("Email send failed")
         return False
 
     subject = f"Заявка с ТГ бота №{application_id}"
@@ -123,6 +177,27 @@ def send_email(application_id: int, name: str, phone: str, update: Update):
         logger.error(f"Email send failed: {e}")
         return False
 
+
+# === Public info text ===
+def contacts_text():
+    lines = [
+        "📍 Режим работы:",
+        WORKING_HOURS,
+        "",
+        "📞 Контакты:",
+        CLUB_PHONE,
+        CLUB_EMAIL,
+        "",
+        "📍 Адрес:",
+        CLUB_ADDRESS,
+    ]
+    if CLUB_WEBSITE:
+        lines.extend(["", "🌐 Сайт:", CLUB_WEBSITE])
+    if CLUB_MAP_URL:
+        lines.extend(["", "🗺️ Карта:", CLUB_MAP_URL])
+    return "
+".join(lines)
+
 # === States ===
 (
     MAIN_MENU,
@@ -139,6 +214,9 @@ def main_menu_keyboard():
         resize_keyboard=True,
     )
 
+async def _reply_menu(update: Update, text: str):
+    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
+
 def guest_phone_keyboard():
     return ReplyKeyboardMarkup(
         [
@@ -150,13 +228,11 @@ def guest_phone_keyboard():
     )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        f"Добро пожаловать в {CLUB_NAME}! Выберите раздел:", reply_markup=main_menu_keyboard()
-    )
+    await _reply_menu(update, f"Добро пожаловать в {CLUB_NAME}! Выберите раздел:")
     return MAIN_MENU
 
 async def to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Главное меню:", reply_markup=main_menu_keyboard())
+    await _reply_menu(update, "Главное меню:")
     return MAIN_MENU
 
 async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -169,13 +245,14 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return GUEST_NAME
     elif "жалобы" in text:
-        await update.message.reply_text(
-            "Оставить жалобу/предложение: заполните форму 👉 https://forms.gle/example",
-            reply_markup=main_menu_keyboard(),
-        )
+        await _reply_menu(update, "Оставить жалобу/предложение: заполните форму 👉 https://forms.gle/example")
         return MAIN_MENU
+    elif "режим работы" in text or "контакты" in text:
+        await _reply_menu(update, contacts_text())
+        return MAIN_MENU
+
     else:
-        await update.message.reply_text("Раздел в разработке. Выберите другой пункт.", reply_markup=main_menu_keyboard())
+        await _reply_menu(update, "Раздел в разработке. Выберите другой пункт.")
         return MAIN_MENU
 
 async def guest_get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -215,7 +292,7 @@ async def guest_get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         application_id = insert_guest(name, phone, user.id, user.username)
     except Exception as e:
         logger.exception("DB insert failed")
-        await update.message.reply_text("Произошла ошибка при сохранении заявки. Попробуйте позже.", reply_markup=main_menu_keyboard())
+        await _reply_menu(update, "Произошла ошибка при сохранении заявки. Попробуйте позже.")
         return MAIN_MENU
 
     # Send email
@@ -229,13 +306,13 @@ async def guest_get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not email_ok:
         confirm += "\n\n⚠️ Письмо на почту не отправлено (настройки почты не заданы)."
 
-    await update.message.reply_text(confirm, reply_markup=main_menu_keyboard())
+    await _reply_menu(update, confirm)
     context.user_data.pop("guest_name", None)
     return MAIN_MENU
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    await update.message.reply_text("Отменено.", reply_markup=main_menu_keyboard())
+    await _reply_menu(update, "Отменено.")
     return MAIN_MENU
 
 def build_application() -> Application:
